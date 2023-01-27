@@ -7,8 +7,10 @@ public static class SearchExtensions
     public static (int x, int y) ToCoordinates(this Vector3 source) =>
         (Mathf.RoundToInt(source.x), Mathf.RoundToInt(source.z));
 
-    public static float3 ToFloat3(this (int x, int y) source) =>
-        new (source.x, 0.0f, source.y);
+    public static Vector3 ToVector3(this (int x, int y) source) =>
+        new (source.x, 0.5f, source.y);
+    
+    public static float3 ToFloat3(this Vector3 source) =>source;
     
     public static IEnumerable<(int x, int y)> GetNeighbors(this (int x, int y) source)
     {

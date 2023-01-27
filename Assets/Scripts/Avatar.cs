@@ -7,12 +7,20 @@ using UnityEngine.Splines;
 public class Avatar : MonoBehaviour
 {
     [SerializeField] private float speed = 2.5f;
+
+    private const float AvatarRadius = 0.5f;
+    private static readonly float WallRadius = Mathf.Sqrt(0.5f * 0.5f + 0.5f * 0.5f);
     
-    private HashSet<(int x, int y)> walls;
+    private List<Transform> walls;
+    private HashSet<(int x, int y)> wallCoordinates;
 
     private void Start()
     {
-        walls = SearchUtils.FindWalls().ToHashSet();
+        walls = SearchUtils.FindWalls().ToList();
+        wallCoordinates = walls
+            .Select(wall => wall.position)
+            .Select(SearchExtensions.ToCoordinates)
+            .ToHashSet();
     }
 
     public void MoveToPosition(Vector3 position)
@@ -22,16 +30,22 @@ public class Avatar : MonoBehaviour
         if (!SearchUtils.FindPath(
                 transform.position.ToCoordinates(),
             position.ToCoordinates(),
-                walls,
+                wallCoordinates,
                 out var path))
         {
             Debug.Log("Failed to find a path to the destination.");
             return;
         }
 
+        var smoothedPath = SearchUtils.SmoothPath(
+            path.Select(SearchExtensions.ToVector3).ToList(),
+            walls,
+            AvatarRadius,
+            WallRadius);
+        
         var curvedPath = SplineFactory.CreateCatmullRom(
-            path
-                .Select(coordinates => coordinates.ToFloat3())
+            smoothedPath
+                .Select(SearchExtensions.ToFloat3)
                 .ToList());
         
         StartCoroutine(FollowPath(curvedPath));

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public static class SearchUtils
@@ -21,9 +22,10 @@ public static class SearchUtils
         }
     }
 
-    public static IEnumerable<(int x, int y)> FindWalls() => GameObject.FindGameObjectsWithTag("Wall")
-        .Select(wall => wall.transform.position)
-        .Select(SearchExtensions.ToCoordinates);
+    private const float StepSize = 0.5f;
+    
+    public static IEnumerable<Transform> FindWalls() => GameObject.FindGameObjectsWithTag("Wall")
+        .Select(wall => wall.transform);
     
     public static bool FindPath(
         (int x, int y) start,
@@ -92,4 +94,92 @@ public static class SearchUtils
 
     private static int ComparePathsShort(PathNode first, PathNode second) =>
         (first.Cost + first.Heuristic).CompareTo(second.Cost + second.Heuristic);
+
+    public static List<Vector3> SmoothPath(
+        List<Vector3> path,
+        ICollection<Transform> walls,
+        float avatarRadius,
+        float wallRadius)
+    {
+        var radiusSquared = (avatarRadius + wallRadius) * (avatarRadius + wallRadius);
+
+        var forwardPath = path.ToList();
+        var frontToBack = CullPath(forwardPath, walls, radiusSquared);
+
+        var reversePath = path.ToList();
+        reversePath.Reverse();
+        var backToFront = CullPath(reversePath, walls, radiusSquared);
+        backToFront.Reverse();
+
+        return ComputeLength(frontToBack) < ComputeLength(backToFront) ? frontToBack : backToFront;
+    }
+
+    private static List<Vector3> CullPath(
+        ICollection<Vector3> path,
+        ICollection<Transform> walls,
+        float radiusSquared)
+    {
+        var result = new List<Vector3>();
+        
+        var current = path.First();
+        path.Remove(current);
+        result.Add(current);
+
+        var intermediate = path.First();
+        path.Remove(intermediate);
+        
+        while (path.Any())
+        {
+            var next = path.First();
+            path.Remove(next);
+
+            if (!IsWalkable(current, next, walls, radiusSquared))
+            {
+                result.Add(intermediate);
+                current = intermediate;
+            }
+
+            intermediate = next;
+            
+            if (!path.Any())
+            {
+                result.Add(next);
+            }
+        }
+
+        return result;
+    }
+    
+    private static bool IsWalkable(
+        Vector3 start,
+        Vector3 end,
+        ICollection<Transform> walls,
+        float radiusSquared)
+    {
+        var direction = end - start;
+        var steps = Mathf.FloorToInt(direction.magnitude / StepSize);
+
+        for (int step = 1; step < steps; ++step)
+        {
+            var position = start + direction * step / steps;
+            if (walls.Any(wall => (position - wall.position).sqrMagnitude < radiusSquared))
+            {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    private static float ComputeLength(List<Vector3> path)
+    {
+        var sum = 0.0f;
+        
+        for (int index = 1; index < path.Count; ++index)
+        {
+            sum += (path[index] - path[index - 1]).magnitude;
+        }
+
+        return sum;
+    }
 }
